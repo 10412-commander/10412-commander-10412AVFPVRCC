@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Robot Control Dashboard</title>
+    <style>
+        body { text-align: center; font-family: Arial, sans-serif; background: #222; color: white; }
+        img { width: 640px; height: 480px; background: #000; border: 2px solid #555; }
+        .btn { padding: 15px 30px; font-size: 20px; margin: 10px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h2>Live Camera</h2>
+    <!-- Khung hiển thị Video từ ESP-CAM -->
+    <img id="cameraStream" src="" alt="Waiting for video stream..."><br>
+    
+    <h2>Control</h2>
+    <div>
+        <button class="btn" onmousedown="sendCommand('F')" onmouseup="sendCommand('S')">Tiến (W)</button><br>
+        <button class="btn" onmousedown="sendCommand('L')" onmouseup="sendCommand('S')">Trái (A)</button>
+        <button class="btn" onmousedown="sendCommand('S')">Dừng (S)</button>
+        <button class="btn" onmousedown="sendCommand('R')" onmouseup="sendCommand('S')">Phải (D)</button><br>
+        <button class="btn" onmousedown="sendCommand('B')" onmouseup="sendCommand('S')">Lùi (X)</button>
+    </div>
+
+    <script>
+        // Tự động nhận diện URL của server hiện tại
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.host;
+
+        // Kết nối luồng Video
+        const wsVideo = new WebSocket(`${wsProtocol}//${host}/video`);
+        wsVideo.binaryType = 'blob';
+        const img = document.getElementById('cameraStream');
+        
+        wsVideo.onmessage = function(event) {
+            // Biến mảng byte nhận được thành URL hình ảnh
+            const url = URL.createObjectURL(event.data);
+            img.src = url;
+            // Giải phóng bộ nhớ sau khi hình ảnh tải xong
+            img.onload = () => URL.revokeObjectURL(url); 
+        };
+
+        // Kết nối luồng Điều khiển
+        const wsControl = new WebSocket(`${wsProtocol}//${host}/control`);
+        function sendCommand(cmd) {
+            if (wsControl.readyState === WebSocket.OPEN) {
+                wsControl.send(cmd);
+                console.log("Sent command: " + cmd);
+            }
+        }
+    </script>
+</body>
+</html>
