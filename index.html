@@ -3,9 +3,33 @@
 <head>
     <title>Robot Control Dashboard</title>
     <style>
-        body { text-align: center; font-family: Arial, sans-serif; background: #222; color: white; }
-        img { width: 640px; height: 480px; background: #000; border: 2px solid #555; }
-        .btn { padding: 15px 30px; font-size: 20px; margin: 10px; cursor: pointer; }
+        body { 
+            text-align: center; 
+            font-family: Arial, sans-serif; 
+            background: #222; 
+            color: white; 
+            /* Ngăn vô tình bôi đen toàn trang trên mobile */
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        img { 
+            width: 640px; 
+            height: 480px; 
+            background: #000; 
+            border: 2px solid #555; 
+            max-width: 100%; /* Đảm bảo video không tràn viền trên điện thoại */
+            height: auto;
+        }
+        .btn { 
+            padding: 15px 30px; 
+            font-size: 20px; 
+            margin: 10px; 
+            cursor: pointer; 
+            
+            /* CÁC THUỘC TÍNH SỐNG CÒN CHO MOBILE */
+            touch-action: none;          /* Vô hiệu hóa hành vi cuộn/zoom khi chạm vào nút */
+            -webkit-touch-callout: none; /* Vô hiệu hóa menu popup nhấn giữ trên iOS */
+        }
     </style>
 </head>
 <body>
@@ -14,16 +38,17 @@
     <img id="cameraStream" src="" alt="Waiting for video stream..."><br>
     
     <h2>Control</h2>
+    <!-- Sử dụng data-cmd để gắn mã lệnh cho từng nút, giúp JS code gọn hơn -->
     <div>
-        <button class="btn" onmousedown="sendCommand('F')" onmouseup="sendCommand('S')">Forward (W)</button><br>
-        <button class="btn" onmousedown="sendCommand('L')" onmouseup="sendCommand('S')">Left (A)</button>
-        <button class="btn" onmousedown="sendCommand('S')">Stop (S)</button>
-        <button class="btn" onmousedown="sendCommand('R')" onmouseup="sendCommand('S')">Right (D)</button><br>
-        <button class="btn" onmousedown="sendCommand('B')" onmouseup="sendCommand('S')">Backward (X)</button>
+        <button class="btn" data-cmd="F">Forward (W)</button><br>
+        <button class="btn" data-cmd="L">Left (A)</button>
+        <button class="btn" data-cmd="S">Stop (S)</button>
+        <button class="btn" data-cmd="R">Right (D)</button><br>
+        <button class="btn" data-cmd="B">Backward (X)</button>
     </div>
 
     <script>
-        // Tự động nhận diện URL của server hiện tại
+        // --- 1. KẾT NỐI WEBSOCKET ---
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.host;
 
@@ -33,10 +58,8 @@
         const img = document.getElementById('cameraStream');
         
         wsVideo.onmessage = function(event) {
-            // Biến mảng byte nhận được thành URL hình ảnh
             const url = URL.createObjectURL(event.data);
             img.src = url;
-            // Giải phóng bộ nhớ sau khi hình ảnh tải xong
             img.onload = () => URL.revokeObjectURL(url); 
         };
 
@@ -48,6 +71,58 @@
                 console.log("Sent command: " + cmd);
             }
         }
+
+        // --- 2. XỬ LÝ SỰ KIỆN ĐIỀU KHIỂN (MOBILE + PC) ---
+        let currentCmd = 'S'; // Biến cờ (Flag) lưu trạng thái để chống gửi lệnh lặp F-S liên tục
+        const buttons = document.querySelectorAll('.btn');
+
+        buttons.forEach(btn => {
+            const cmd = btn.getAttribute('data-cmd');
+
+            // Khi ngón tay chạm vào (hoặc click chuột)
+            btn.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                // Chỉ gửi lệnh nếu trạng thái thực sự thay đổi
+                if (currentCmd !== cmd) {
+                    currentCmd = cmd;
+                    sendCommand(cmd);
+                }
+            });
+
+            // Hàm xử lý chung khi nhả ngón tay, trượt ra ngoài nút, hoặc bị hủy (cuộc gọi đến)
+            const releaseAction = (e) => {
+                e.preventDefault();
+                // Chỉ gửi lệnh Stop nếu ngón tay nhả ra đang là ngón điều khiển lệnh chạy (bỏ qua nút Stop cứng)
+                if (currentCmd === cmd && cmd !== 'S') {
+                    currentCmd = 'S';
+                    sendCommand('S');
+                }
+            };
+
+            btn.addEventListener('pointerup', releaseAction);
+            btn.addEventListener('pointercancel', releaseAction);
+            btn.addEventListener('pointerleave', releaseAction);
+        });
+
+        // --- 3. BỔ SUNG ĐIỀU KHIỂN BẰNG BÀN PHÍM ---
+        const keyMap = { 'w': 'F', 'a': 'L', 's': 'S', 'd': 'R', 'x': 'B' };
+
+        document.addEventListener('keydown', (e) => {
+            const cmd = keyMap[e.key.toLowerCase()];
+            if (cmd && currentCmd !== cmd) {
+                currentCmd = cmd;
+                sendCommand(cmd);
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            const cmd = keyMap[e.key.toLowerCase()];
+            // Khi nhả phím (trừ phím 's' - stop cứng), gửi lệnh dừng
+            if (cmd && cmd !== 'S' && currentCmd === cmd) {
+                currentCmd = 'S';
+                sendCommand('S');
+            }
+        });
     </script>
 </body>
 </html>
