@@ -24,6 +24,14 @@ const server = http.createServer((req, res) => {
             res.writeHead(200, { 'Content-Type': 'text/html' });
             res.end(data);
         });
+    } else if (req.url === '/connectedsound.wav') {
+        if (audioBuffer) {
+            res.writeHead(200, { 'Content-Type': 'audio/wav' });
+            res.end(audioBuffer);
+        } else {
+            res.writeHead(404);
+            res.end('Not Found');
+        }
     } else {
         res.writeHead(404);
         res.end('Not Found');
