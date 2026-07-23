@@ -40,6 +40,9 @@
     <h2>Control</h2>
     <!-- Sử dụng data-cmd để gắn mã lệnh cho từng nút, giúp JS code gọn hơn -->
     <div>
+    <button class="btn" onclick="requestSound()" style="background: #e74c3c;">Phát Âm Thanh</button>
+    </div>
+    <div>
         <button class="btn" data-cmd="F">Forward (W)</button><br>
         <button class="btn" data-cmd="L">Left (A)</button>
         <button class="btn" data-cmd="S">Stop (S)</button>
@@ -123,6 +126,21 @@
                 sendCommand('S');
             }
         });
+    
+    // play sound request
+        function requestSound() {
+        if (wsControl.readyState === WebSocket.OPEN) {
+            wsControl.send('REQ_SOUND');
+        }
+    }
+
+    // Lắng nghe lệnh từ Server để phát nhạc trên trình duyệt
+    wsControl.onmessage = function(event) {
+        if (event.data === 'PLAY_SOUND') {
+            const audio = new Audio('/connectedsound.wav');
+            audio.play().catch(e => console.log("Lỗi trình duyệt chặn tự động phát âm thanh:", e));
+        }
+    };
     </script>
 </body>
 </html>

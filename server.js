@@ -5,7 +5,14 @@ const path = require('path');
 
 // Sử dụng Port do Render cấp phát, hoặc 3000 nếu chạy local
 const PORT = process.env.PORT || 3000;
-
+// connected audio prepared 
+let audioBuffer = null;
+try {
+    audioBuffer = fs.readFileSync(path.join(__dirname, 'connectedsound.wav'));
+    console.log(`Đã tải connectedsound.wav (${audioBuffer.length} bytes)`);
+} catch (err) {
+    console.error('Không tìm thấy tệp connectedsound.wav');
+}
 // 1. Khởi tạo HTTP Server để phục vụ giao diện Web
 const server = http.createServer((req, res) => {
     if (req.url === '/') {
@@ -28,6 +35,37 @@ const wssVideo = new WebSocket.Server({ noServer: true });
 const wssAudio = new WebSocket.Server({ noServer: true });
 const wssControl = new WebSocket.Server({ noServer: true });
 
+// audio streaming logic
+function broadcastSound() {
+    // Ra lệnh cho Trình duyệt phát âm thanh
+    wssControl.clients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) client.send('PLAY_SOUND');
+    });
+
+    // 3.2. Cắt nhỏ và gửi luồng PCM cho ESP32
+    if (!audioBuffer) return;
+    
+    const chunkSize = 1024; // Gửi 1KB mỗi lần
+    let offset = 44; // Bỏ qua 44 bytes Header của file WAV
+    
+    const interval = setInterval(() => {
+        if (offset >= audioBuffer.length) {
+            clearInterval(interval); // Dừng gửi khi hết file
+            return;
+        }
+        
+        // Cắt một đoạn từ buffer
+        const chunk = audioBuffer.slice(offset, offset + chunkSize);
+        offset += chunkSize;
+        
+        // Gửi xuống tất cả thiết bị ở kênh Audio (ESP32)
+        wssAudio.clients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(chunk);
+            }
+        });
+    }, 30); // 1024 bytes 16-bit 16kHz tương đương 32ms. Delay 30ms để tránh hụt dữ liệu.
+}
 // Luồng Video (ESP-CAM -> Web)
 wssVideo.on('connection', (ws) => {
     ws.on('message', (data) => {
@@ -49,9 +87,14 @@ wssAudio.on('connection', (ws) => {
 // Luồng Control (Web -> Main ESP)
 wssControl.on('connection', (ws) => {
     ws.on('message', (data) => {
-        wssControl.clients.forEach((client) => {
-            if (client !== ws && client.readyState === WebSocket.OPEN) client.send(data);
-        });
+        const msg = data.toString();
+        if (msg === 'REQ_SOUND') {
+            broadcastSound();
+        } else {
+            wssControl.clients.forEach((client) => {
+                if (client !== ws && client.readyState === WebSocket.OPEN) client.send(data);
+            });
+        }
     });
 });
 
