@@ -142,6 +142,8 @@ function playSpecificSound(filename) {
 }
 // Luồng Video (ESP-CAM -> Web)
 wssVideo.on('connection', (ws) => {
+    console.log("[Video] Có thiết bị vừa kết nối Camera, đang phát standingby.wav...");
+    playSpecificSound('standingby.wav');
     ws.on('message', (data) => {
         wssVideo.clients.forEach((client) => {
             if (client !== ws && client.readyState === WebSocket.OPEN) client.send(data);
