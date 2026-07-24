@@ -1,97 +1,202 @@
 <!DOCTYPE html>
-<html>
+<html lang="vi">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Robot Control Dashboard</title>
     <style>
+        /* Base & Reset */
+        * { box-sizing: border-box; }
         body { 
-            text-align: center; 
-            font-family: Arial, sans-serif; 
-            background: #222; 
-            color: white; 
+            margin: 0; 
+            padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: #121212; /* Đen tuyền tối giản */
+            color: #e0e0e0; 
             -webkit-user-select: none;
             user-select: none;
+            display: flex;
+            justify-content: center;
         }
-        img { 
-            width: 640px; 
-            height: 480px; 
-            background: #000; 
-            border: 2px solid #555; 
-            max-width: 100%;
-            height: auto;
-            /* Xoay 180 độ để đúng chiều trên dưới, sau đó scaleX(-1) để lật gương lại chiều trái phải */
+        h2 { 
+            margin-top: 0; 
+            font-weight: 400; 
+            letter-spacing: 1.5px; 
+            text-transform: uppercase;
+            font-size: 1.2rem;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        /* Responsive Layout Container */
+        .dashboard {
+            display: flex;
+            flex-direction: column; /* Mặc định cho Mobile là xếp dọc */
+            width: 100%;
+            max-width: 1200px;
+            gap: 25px;
+        }
+
+        /* Style cho các khối Panel tạo Layer với bóng trắng */
+        .panel {
+            background: #1e1e1e;
+            padding: 25px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            /* Đổ bóng trắng mờ tạo hiệu ứng layer */
+            box-shadow: 0 10px 30px rgba(255, 255, 255, 0.05), 0 1px 8px rgba(255, 255, 255, 0.02);
+        }
+
+        /* Desktop & Landscape Mode (Chia 3 phần: 2 phần Camera, 1 phần Điều khiển) */
+        @media (min-width: 850px) {
+            .dashboard {
+                flex-direction: row;
+                align-items: flex-start;
+            }
+            .video-panel { flex: 2; }
+            .control-panel { flex: 1; min-width: 300px; }
+        }
+
+        /* Camera Frame */
+        #cameraStream { 
+            width: 100%; 
+            background: #0a0a0a; 
+            border-radius: 8px;
+            aspect-ratio: 4/3;
+            object-fit: contain;
+            /* Lật ngược hình ảnh 180 độ và lật gương (trái-phải) */
             transform: rotate(180deg) scaleX(-1); 
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
         }
+
+        /* Nút bấm tổng quát */
         .btn { 
-            padding: 15px 30px; 
-            font-size: 20px; 
-            margin: 10px; 
+            padding: 12px; 
+            font-size: 15px; 
+            font-weight: bold;
             cursor: pointer; 
-            border: none;
-            border-radius: 5px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            background: #2a2a2a;
+            color: #fff;
+            transition: all 0.2s ease;
             touch-action: none;          
             -webkit-touch-callout: none; 
+            width: 100%;
+            display: block;
         }
-        .sound-menu-container {
-            border: 1px solid #555;
-            padding: 15px;
-            margin: 10px auto;
-            max-width: 400px;
-            border-radius: 8px;
-            background: #333;
+        .btn:active {
+            transform: scale(0.95);
+            background: #444;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+        }
+
+        /* Màu sắc nút tùy chỉnh */
+        .btn-primary { background: transparent; border-color: #3498db; color: #3498db; }
+        .btn-primary:active { background: #3498db; color: #fff; }
+        
+        .btn-success { background: rgba(46, 204, 113, 0.1); border-color: #2ecc71; color: #2ecc71; }
+        .btn-success:active { background: #2ecc71; color: #fff; }
+        
+        .btn-danger { background: rgba(231, 76, 60, 0.1); border-color: #e74c3c; color: #e74c3c; margin-bottom: 15px;}
+        .btn-danger:active { background: #e74c3c; color: #fff; }
+
+        /* Khung Menu Âm thanh */
+        .sound-section {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 30px;
         }
         select {
-            padding: 10px;
-            font-size: 16px;
-            margin-right: 10px;
-            border-radius: 5px;
-            background: #444;
+            padding: 12px;
+            font-size: 15px;
+            border-radius: 8px;
+            background: #121212;
             color: white;
-            border: 1px solid #666;
+            border: 1px solid rgba(255,255,255,0.3);
             width: 100%;
-            margin-bottom: 10px;
+            outline: none;
+            cursor: pointer;
         }
+        select:focus {
+            border-color: #fff;
+        }
+
+        /* Layout D-Pad cho Nút di chuyển (Hình dấu thập) */
+        .d-pad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            justify-items: center;
+            align-items: center;
+            margin-top: 10px;
+        }
+        .d-pad .btn {
+            height: 60px;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 12px;
+            line-height: 1.2;
+            background: #222;
+        }
+        .d-pad .btn span { font-size: 20px; }
+        
+        /* Định vị từng nút trong D-Pad */
+        .btn-F { grid-column: 2; grid-row: 1; }
+        .btn-L { grid-column: 1; grid-row: 2; }
+        .btn-S { grid-column: 2; grid-row: 2; background: rgba(231, 76, 60, 0.2) !important; border-color: #e74c3c;}
+        .btn-R { grid-column: 3; grid-row: 2; }
+        .btn-B { grid-column: 2; grid-row: 3; }
     </style>
 </head>
 <body>
-    <h2>Live Camera</h2>
-    <!-- Video display frame from ESP-CAM -->
-    <img id="cameraStream" src="" alt="Waiting for video stream..."><br>
-    
-    <h2>Control</h2>
-    
-    <div>
-        <button class="btn" onclick="requestSound()" style="background: #e74c3c; color:white;">Play Connected Sound</button>
-    </div>
 
-    <!-- NEW: Sound list playback selection area -->
-    <div class="sound-menu-container">
-        <button class="btn" onclick="toggleSoundMenu()" style="background: #3498db; color:white; font-size: 16px; padding: 10px 20px;">
-            📁 Show / Hide Sound List
-        </button>
-        
-        <div id="soundMenu" style="display: none; margin-top: 15px;">
-            <select id="soundSelect">
-                <option value="">-- Loading list... --</option>
-            </select>
-            <br>
-            <button class="btn" onclick="playSelectedSound()" style="background: #2ecc71; color:white; font-size: 16px; padding: 10px 20px; margin: 0;">
-                ▶ Play Selected Sound
-            </button>
+    <div class="dashboard">
+        <!-- Khu vực 1: Camera (Chiếm 2 phần) -->
+        <div class="panel video-panel">
+            <h2>Live Camera</h2>
+            <!-- Video display frame from ESP-CAM -->
+            <img id="cameraStream" src="" alt="Waiting for video stream...">
+        </div>
+
+        <!-- Khu vực 2: Điều khiển (Chiếm 1 phần) -->
+        <div class="panel control-panel">
+            <h2>Dashboard</h2>
+            
+            <!-- Sound Controls -->
+            <div class="sound-section">
+                <button class="btn btn-danger" onclick="requestSound()">Bíp Kết Nối</button>
+
+                <button class="btn btn-primary" onclick="toggleSoundMenu()">📁 File Âm Thanh</button>
+                
+                <div id="soundMenu" style="display: none; width: 100%;">
+                    <select id="soundSelect">
+                        <option value="">-- Đang tải danh sách... --</option>
+                    </select>
+                    <button class="btn btn-success" onclick="playSelectedSound()" style="margin-top: 10px;">
+                        ▶ Phát Tệp Đã Chọn
+                    </button>
+                </div>
+            </div>
+
+            <!-- Motor Control (D-Pad style) -->
+            <h2>Movement</h2>
+            <div class="d-pad">
+                <button class="btn btn-F" data-cmd="F"><span>▲</span>W</button>
+                <button class="btn btn-L" data-cmd="L"><span>◀</span>A</button>
+                <button class="btn btn-S" data-cmd="S"><span>⏹</span>S</button>
+                <button class="btn btn-R" data-cmd="R"><span>▶</span>D</button>
+                <button class="btn btn-B" data-cmd="B"><span>▼</span>X</button>
+            </div>
         </div>
     </div>
-    
-    <hr style="border-color: #555; margin: 20px auto; max-width: 400px;">
 
-    <!-- Motor control buttons -->
-    <div>
-        <button class="btn" data-cmd="F" style="background: #aaa;">Forward (W)</button><br>
-        <button class="btn" data-cmd="L" style="background: #aaa;">Left (A)</button>
-        <button class="btn" data-cmd="S" style="background: #aaa;">Stop (S)</button>
-        <button class="btn" data-cmd="R" style="background: #aaa;">Right (D)</button><br>
-        <button class="btn" data-cmd="B" style="background: #aaa;">Backward (X)</button>
-    </div>
-
+    <!-- JAVASCRIPT: GIỮ NGUYÊN 100% LOGIC SERVER -->
     <script>
         // --- 1. WEBSOCKET CONNECTION ---
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
