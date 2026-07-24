@@ -32,7 +32,33 @@ const server = http.createServer((req, res) => {
             res.writeHead(404);
             res.end('Not Found');
         }
-    } else {
+    } // API endpoint to list available sound files in the defaultsound directory 
+    else if (req.url === '/api/sounds') {
+        const soundDir = path.join(__dirname, 'defaultsound');
+        fs.readdir(soundDir, (err, files) => {
+            if (err) {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify([])); // Trả về mảng rỗng nếu thư mục không tồn tại
+            }
+            // Chỉ lọc lấy các tệp có đuôi .wav
+            const wavFiles = files.filter(f => f.toLowerCase().endsWith('.wav'));
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(wavFiles));
+        });
+    } // API endpoint to serve a specific sound file from the defaultsound directory
+    else if (req.url.startsWith('/defaultsound/')) {
+        const filename = decodeURIComponent(req.url.split('/')[2]);
+        const filePath = path.join(__dirname, 'defaultsound', filename);
+        fs.readFile(filePath, (err, data) => {
+            if (err) {
+                res.writeHead(404);
+                return res.end('Not Found');
+            }
+            res.writeHead(200, { 'Content-Type': 'audio/wav' });
+            res.end(data);
+        });
+    }
+     else {
         res.writeHead(404);
         res.end('Not Found');
     }
@@ -42,7 +68,8 @@ const server = http.createServer((req, res) => {
 const wssVideo = new WebSocket.Server({ noServer: true });
 const wssAudio = new WebSocket.Server({ noServer: true });
 const wssControl = new WebSocket.Server({ noServer: true });
-
+// parameter to manage the audio streaming interval (eleminate old interval when new request comes)
+let currentAudioInterval = null;
 // audio streaming logic
 function broadcastSound() {
     // Ra lệnh cho Trình duyệt phát âm thanh
@@ -52,7 +79,8 @@ function broadcastSound() {
 
     // 3.2. Cắt nhỏ và gửi luồng PCM cho ESP32
     if (!audioBuffer) return;
-    
+    // Dừng interval cũ nếu có
+    if (currentAudioInterval) clearInterval(currentAudioInterval);
     const chunkSize = 1024; // Gửi 1KB mỗi lần
     let offset = 44; // Bỏ qua 44 bytes Header của file WAV
     
@@ -73,6 +101,43 @@ function broadcastSound() {
             }
         });
     }, 30); // 1024 bytes 16-bit 16kHz tương đương 32ms. Delay 30ms để tránh hụt dữ liệu.
+}
+// function to play a specific sound file from the defaultsound directory
+function playSpecificSound(filename) {
+    const filePath = path.join(__dirname, 'defaultsound', filename);
+    fs.readFile(filePath, (err, specAudioBuffer) => {
+        if (err) {
+            console.error("Không tìm thấy tệp:", filename);
+            return;
+        }
+        
+        // Ra lệnh cho Trình duyệt phát âm thanh file này
+        wssControl.clients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) client.send('PLAY_SOUND:' + filename);
+        });
+
+        // Nếu có bài nào đang phát thì dừng lại để nhường luồng I2S cho bài mới
+        if (currentAudioInterval) clearInterval(currentAudioInterval);
+
+        const chunkSize = 1024; 
+        let offset = 44; 
+        
+        currentAudioInterval = setInterval(() => {
+            if (offset >= specAudioBuffer.length) {
+                clearInterval(currentAudioInterval); 
+                currentAudioInterval = null;
+                return;
+            }
+            const chunk = specAudioBuffer.slice(offset, offset + chunkSize);
+            offset += chunkSize;
+            
+            wssAudio.clients.forEach(client => {
+                if (client.readyState === WebSocket.OPEN) {
+                    client.send(chunk);
+                }
+            });
+        }, 30);
+    });
 }
 // Luồng Video (ESP-CAM -> Web)
 wssVideo.on('connection', (ws) => {

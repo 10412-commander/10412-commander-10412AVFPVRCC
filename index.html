@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
     <title>Robot Control Dashboard</title>
     <style>
         body { 
@@ -8,7 +9,6 @@
             font-family: Arial, sans-serif; 
             background: #222; 
             color: white; 
-            /* Ngăn vô tình bôi đen toàn trang trên mobile */
             -webkit-user-select: none;
             user-select: none;
         }
@@ -17,7 +17,7 @@
             height: 480px; 
             background: #000; 
             border: 2px solid #555; 
-            max-width: 100%; /* Đảm bảo video không tràn viền trên điện thoại */
+            max-width: 100%;
             height: auto;
         }
         .btn { 
@@ -25,37 +25,77 @@
             font-size: 20px; 
             margin: 10px; 
             cursor: pointer; 
-            
-            /* CÁC THUỘC TÍNH SỐNG CÒN CHO MOBILE */
-            touch-action: none;          /* Vô hiệu hóa hành vi cuộn/zoom khi chạm vào nút */
-            -webkit-touch-callout: none; /* Vô hiệu hóa menu popup nhấn giữ trên iOS */
+            border: none;
+            border-radius: 5px;
+            touch-action: none;          
+            -webkit-touch-callout: none; 
+        }
+        /* NEW: Style for the sound selection area */
+        .sound-menu-container {
+            border: 1px solid #555;
+            padding: 15px;
+            margin: 10px auto;
+            max-width: 400px;
+            border-radius: 8px;
+            background: #333;
+        }
+        select {
+            padding: 10px;
+            font-size: 16px;
+            margin-right: 10px;
+            border-radius: 5px;
+            background: #444;
+            color: white;
+            border: 1px solid #666;
+            width: 100%;
+            margin-bottom: 10px;
         }
     </style>
 </head>
 <body>
     <h2>Live Camera</h2>
-    <!-- Khung hiển thị Video từ ESP-CAM -->
+    <!-- Video display frame from ESP-CAM -->
     <img id="cameraStream" src="" alt="Waiting for video stream..."><br>
     
     <h2>Control</h2>
-    <!-- Sử dụng data-cmd để gắn mã lệnh cho từng nút, giúp JS code gọn hơn -->
+    
     <div>
-    <button class="btn" onclick="requestSound()" style="background: #e74c3c;">play connected sound</button>
+        <button class="btn" onclick="requestSound()" style="background: #e74c3c; color:white;">Play Connected Sound</button>
     </div>
+
+    <!-- NEW: Sound list playback selection area -->
+    <div class="sound-menu-container">
+        <button class="btn" onclick="toggleSoundMenu()" style="background: #3498db; color:white; font-size: 16px; padding: 10px 20px;">
+            📁 Show / Hide Sound List
+        </button>
+        
+        <div id="soundMenu" style="display: none; margin-top: 15px;">
+            <select id="soundSelect">
+                <option value="">-- Loading list... --</option>
+            </select>
+            <br>
+            <button class="btn" onclick="playSelectedSound()" style="background: #2ecc71; color:white; font-size: 16px; padding: 10px 20px; margin: 0;">
+                ▶ Play Selected Sound
+            </button>
+        </div>
+    </div>
+    
+    <hr style="border-color: #555; margin: 20px auto; max-width: 400px;">
+
+    <!-- Motor control buttons -->
     <div>
-        <button class="btn" data-cmd="F">Forward (W)</button><br>
-        <button class="btn" data-cmd="L">Left (A)</button>
-        <button class="btn" data-cmd="S">Stop (S)</button>
-        <button class="btn" data-cmd="R">Right (D)</button><br>
-        <button class="btn" data-cmd="B">Backward (X)</button>
+        <button class="btn" data-cmd="F" style="background: #aaa;">Forward (W)</button><br>
+        <button class="btn" data-cmd="L" style="background: #aaa;">Left (A)</button>
+        <button class="btn" data-cmd="S" style="background: #aaa;">Stop (S)</button>
+        <button class="btn" data-cmd="R" style="background: #aaa;">Right (D)</button><br>
+        <button class="btn" data-cmd="B" style="background: #aaa;">Backward (X)</button>
     </div>
 
     <script>
-        // --- 1. KẾT NỐI WEBSOCKET ---
+        // --- 1. WEBSOCKET CONNECTION ---
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.host;
 
-        // Kết nối luồng Video
         const wsVideo = new WebSocket(`${wsProtocol}//${host}/video`);
         wsVideo.binaryType = 'blob';
         const img = document.getElementById('cameraStream');
@@ -66,7 +106,6 @@
             img.onload = () => URL.revokeObjectURL(url); 
         };
 
-        // Kết nối luồng Điều khiển
         const wsControl = new WebSocket(`${wsProtocol}//${host}/control`);
         function sendCommand(cmd) {
             if (wsControl.readyState === WebSocket.OPEN) {
@@ -75,27 +114,23 @@
             }
         }
 
-        // --- 2. XỬ LÝ SỰ KIỆN ĐIỀU KHIỂN (MOBILE + PC) ---
-        let currentCmd = 'S'; // Biến cờ (Flag) lưu trạng thái để chống gửi lệnh lặp F-S liên tục
-        const buttons = document.querySelectorAll('.btn');
+        // --- 2. CONTROL EVENT HANDLING (MOBILE + PC) ---
+        let currentCmd = 'S'; 
+        const buttons = document.querySelectorAll('.btn[data-cmd]'); // Get only the vehicle control buttons
 
         buttons.forEach(btn => {
             const cmd = btn.getAttribute('data-cmd');
 
-            // Khi ngón tay chạm vào (hoặc click chuột)
             btn.addEventListener('pointerdown', (e) => {
                 e.preventDefault();
-                // Chỉ gửi lệnh nếu trạng thái thực sự thay đổi
                 if (currentCmd !== cmd) {
                     currentCmd = cmd;
                     sendCommand(cmd);
                 }
             });
 
-            // Hàm xử lý chung khi nhả ngón tay, trượt ra ngoài nút, hoặc bị hủy (cuộc gọi đến)
             const releaseAction = (e) => {
                 e.preventDefault();
-                // Chỉ gửi lệnh Stop nếu ngón tay nhả ra đang là ngón điều khiển lệnh chạy (bỏ qua nút Stop cứng)
                 if (currentCmd === cmd && cmd !== 'S') {
                     currentCmd = 'S';
                     sendCommand('S');
@@ -107,7 +142,7 @@
             btn.addEventListener('pointerleave', releaseAction);
         });
 
-        // --- 3. BỔ SUNG ĐIỀU KHIỂN BẰNG BÀN PHÍM ---
+        // --- 3. ADD KEYBOARD CONTROL ---
         const keyMap = { 'w': 'F', 'a': 'L', 's': 'S', 'd': 'R', 'x': 'B' };
 
         document.addEventListener('keydown', (e) => {
@@ -120,27 +155,83 @@
 
         document.addEventListener('keyup', (e) => {
             const cmd = keyMap[e.key.toLowerCase()];
-            // Khi nhả phím (trừ phím 's' - stop cứng), gửi lệnh dừng
             if (cmd && cmd !== 'S' && currentCmd === cmd) {
                 currentCmd = 'S';
                 sendCommand('S');
             }
         });
     
-    // play sound request
-        function requestSound() {
-        if (wsControl.readyState === WebSocket.OPEN) {
-            wsControl.send('REQ_SOUND');
-        }
-    }
+        // --- 4. AUDIO FEATURES ---
+        
+        // 4.1. Get the sound list from the Server on web load
+        fetch('/api/sounds')
+            .then(response => response.json())
+            .then(files => {
+                const select = document.getElementById('soundSelect');
+                select.innerHTML = ''; // Remove "Loading..." text
+                
+                if (files.length === 0) {
+                    select.innerHTML = '<option value="">No files in the defaultsound folder</option>';
+                    return;
+                }
+                
+                files.forEach(file => {
+                    const option = document.createElement('option');
+                    option.value = file;
+                    option.textContent = file;
+                    select.appendChild(option);
+                });
+            })
+            .catch(err => {
+                console.error("Error fetching file list:", err);
+                document.getElementById('soundSelect').innerHTML = '<option value="">Connection error / No files found</option>';
+            });
 
-    // Lắng nghe lệnh từ Server để phát nhạc trên trình duyệt
-    wsControl.onmessage = function(event) {
-        if (event.data === 'PLAY_SOUND') {
-            const audio = new Audio('/connectedsound.wav');
-            audio.play().catch(e => console.log("Lỗi trình duyệt chặn tự động phát âm thanh:", e));
+        // 4.2. Show/Hide sound selection menu
+        function toggleSoundMenu() {
+            const menu = document.getElementById('soundMenu');
+            menu.style.display = (menu.style.display === 'none') ? 'block' : 'none';
         }
-    };
+
+        // 4.3. Play default sound (Connected sound)
+        function requestSound() {
+            if (wsControl.readyState === WebSocket.OPEN) {
+                wsControl.send('REQ_SOUND');
+            }
+        }
+
+        // 4.4. Play selected sound from Select box
+        function playSelectedSound() {
+            const select = document.getElementById('soundSelect');
+            const filename = select.value;
+            
+            if (!filename) {
+                alert("Please select an audio file!");
+                return;
+            }
+
+            if (wsControl.readyState === WebSocket.OPEN) {
+                wsControl.send('REQ_PLAY:' + filename);
+            }
+        }
+
+        // 4.5. Listen to Server commands to play audio simultaneously on the Web
+        wsControl.onmessage = function(event) {
+            // Check string data type to process
+            if (typeof event.data === 'string') {
+                if (event.data === 'PLAY_SOUND') {
+                    // Default sound play command
+                    const audio = new Audio('/connectedsound.wav');
+                    audio.play().catch(e => console.log("Error:", e));
+                } 
+                else if (event.data.startsWith('PLAY_SOUND:')) {
+                    // Sound play command by filename
+                    const filename = event.data.split(':')[1];
+                    const audio = new Audio('/defaultsound/' + filename);
+                    audio.play().catch(e => console.log("Error:", e));
+                }
+            }
+        };
     </script>
 </body>
 </html>
