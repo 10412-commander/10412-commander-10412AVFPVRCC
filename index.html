@@ -19,6 +19,8 @@
             border: 2px solid #555; 
             max-width: 100%;
             height: auto;
+            /* Lật ngược hình ảnh 180 độ. Nếu bạn muốn lật gương (trái-phải) thì dùng: transform: scaleX(-1); */
+            transform: rotate(180deg); 
         }
         .btn { 
             padding: 15px 30px; 
@@ -30,7 +32,6 @@
             touch-action: none;          
             -webkit-touch-callout: none; 
         }
-        /* NEW: Style for the sound selection area */
         .sound-menu-container {
             border: 1px solid #555;
             padding: 15px;
@@ -116,7 +117,7 @@
 
         // --- 2. CONTROL EVENT HANDLING (MOBILE + PC) ---
         let currentCmd = 'S'; 
-        const buttons = document.querySelectorAll('.btn[data-cmd]'); // Get only the vehicle control buttons
+        const buttons = document.querySelectorAll('.btn[data-cmd]');
 
         buttons.forEach(btn => {
             const cmd = btn.getAttribute('data-cmd');
@@ -162,13 +163,11 @@
         });
     
         // --- 4. AUDIO FEATURES ---
-        
-        // 4.1. Get the sound list from the Server on web load
         fetch('/api/sounds')
             .then(response => response.json())
             .then(files => {
                 const select = document.getElementById('soundSelect');
-                select.innerHTML = ''; // Remove "Loading..." text
+                select.innerHTML = ''; 
                 
                 if (files.length === 0) {
                     select.innerHTML = '<option value="">No files in the defaultsound folder</option>';
@@ -187,20 +186,17 @@
                 document.getElementById('soundSelect').innerHTML = '<option value="">Connection error / No files found</option>';
             });
 
-        // 4.2. Show/Hide sound selection menu
         function toggleSoundMenu() {
             const menu = document.getElementById('soundMenu');
             menu.style.display = (menu.style.display === 'none') ? 'block' : 'none';
         }
 
-        // 4.3. Play default sound (Connected sound)
         function requestSound() {
             if (wsControl.readyState === WebSocket.OPEN) {
                 wsControl.send('REQ_SOUND');
             }
         }
 
-        // 4.4. Play selected sound from Select box
         function playSelectedSound() {
             const select = document.getElementById('soundSelect');
             const filename = select.value;
@@ -215,17 +211,13 @@
             }
         }
 
-        // 4.5. Listen to Server commands to play audio simultaneously on the Web
         wsControl.onmessage = function(event) {
-            // Check string data type to process
             if (typeof event.data === 'string') {
                 if (event.data === 'PLAY_SOUND') {
-                    // Default sound play command
                     const audio = new Audio('/connectedsound.wav');
                     audio.play().catch(e => console.log("Error:", e));
                 } 
                 else if (event.data.startsWith('PLAY_SOUND:')) {
-                    // Sound play command by filename
                     const filename = event.data.split(':')[1];
                     const audio = new Audio('/defaultsound/' + filename);
                     audio.play().catch(e => console.log("Error:", e));
