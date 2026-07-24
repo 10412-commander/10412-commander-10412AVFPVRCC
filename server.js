@@ -84,9 +84,10 @@ function broadcastSound() {
     const chunkSize = 1024; // Gửi 1KB mỗi lần
     let offset = 44; // Bỏ qua 44 bytes Header của file WAV
     
-    const interval = setInterval(() => {
+    currentAudioInterval = setInterval(() => {
         if (offset >= audioBuffer.length) {
-            clearInterval(interval); // Dừng gửi khi hết file
+            clearInterval(currentAudioInterval); // Đã SỬA: clear đúng biến
+            currentAudioInterval = null;         // Đã SỬA: reset biến về null khi hết bài
             return;
         }
         
@@ -163,7 +164,13 @@ wssControl.on('connection', (ws) => {
         const msg = data.toString();
         if (msg === 'REQ_SOUND') {
             broadcastSound();
-        } else {
+        }
+        // Handle request to play a specific sound file
+        else if (msg.startsWith('REQ_PLAY:')) {
+            const filename = msg.split(':')[1];
+            playSpecificSound(filename);
+        } 
+        else {
             wssControl.clients.forEach((client) => {
                 if (client !== ws && client.readyState === WebSocket.OPEN) client.send(data);
             });
