@@ -19,8 +19,8 @@
             border: 2px solid #555; 
             max-width: 100%;
             height: auto;
-            /* Lật ngược hình ảnh 180 độ. Nếu bạn muốn lật gương (trái-phải) thì dùng: transform: scaleX(-1); */
-            transform: rotate(180deg); 
+            /* Xoay 180 độ để đúng chiều trên dưới, sau đó scaleX(-1) để lật gương lại chiều trái phải */
+            transform: rotate(180deg) scaleX(-1); 
         }
         .btn { 
             padding: 15px 30px; 
